@@ -17,6 +17,91 @@ pub struct Proxy {
     pub response: i64,
 }
 
+impl Proxy {
+    pub fn from(s: &str) -> Result<Self, String> {
+        let raw = s;
+
+        if raw.contains('#') {
+            Err(format!("hostname contain fragment {}", raw))?
+        }
+
+        if raw.contains('?') {
+            Err(format!("hostname contain query {}", raw))?
+        }
+
+        let (raw, scheme) = if let Some(pos) = raw.find("://") {
+            (
+                raw.get(pos + 3..)
+                    .ok_or_else(|| format!("not parse scheme {}", raw))?,
+                raw.get(..pos)
+                    .ok_or_else(|| format!("not parse scheme {}", raw))?
+                    .to_string(),
+            )
+        } else {
+            Err(format!("hostname not contain scheme {}", raw))?
+        };
+
+        if raw.contains('@') {
+            Err(format!("user info in hostname not supported {}", raw))?
+        };
+
+        if raw.contains('/') {
+            Err(format!("hostname contain path {}", raw))?
+        };
+
+        let (host, port) = if let Some(pos) = raw.rfind(':') {
+            if let Some(start) = raw.find('[') {
+                if let Some(end) = raw.find(']') {
+                    if start == 0 && pos == end + 1 {
+                        (
+                            raw.get(..pos)
+                                .ok_or_else(|| format!("not parse host {}", raw))?
+                                .to_string(),
+                            raw.get(pos + 1..)
+                                .ok_or_else(|| format!("not parse port {}", raw))?
+                                .to_string(),
+                        )
+                    } else {
+                        Err(format!("not parse ipv6 {}", raw))?
+                    }
+                } else {
+                    Err(format!("not parse ipv6 {}", raw))?
+                }
+            } else {
+                (
+                    raw.get(..pos)
+                        .ok_or_else(|| format!("not parse host {}", raw))?
+                        .to_string(),
+                    raw.get(pos + 1..)
+                        .ok_or_else(|| format!("not parse port {}", raw))?
+                        .to_string(),
+                )
+            }
+        } else {
+            Err(format!("not parse port {}", raw))?
+        };
+
+        let _ = port
+            .parse::<u32>()
+            .map_err(|_| format!("not parse port {}", port))?;
+
+        Ok(Proxy {
+            insert: false,
+            update: false,
+            work: false,
+            anon: false,
+            checks: 0,
+            hostname: format!("{}:{}", host, port),
+            host,
+            port,
+            scheme,
+            create_at: chrono::Local::now(),
+            update_at: chrono::Local::now(),
+            response: 0,
+        })
+    }
+}
+
 fn full_from_row(row: Row) -> Result<Proxy, String> {
     Ok(Proxy {
         insert: false,
